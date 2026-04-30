@@ -9,5 +9,4 @@ data:
   JWT_EXPIRES_IN: "7d"
   AUTH_MONGO_URI: "mongodb://mongo-auth.default.svc.cluster.local:27017/auth-db"
   JOBAPP_MONGO_URI: "mongodb://mongo-jobapp.default.svc.cluster.local:27017/jobapp-db"
-  # Replace with your actual GCS bucket name before deploying.
-  GCS_BUCKET_NAME: "your-gcs-bucket-name"
+  GCS_BUCKET_NAME: "job-app-storage"
