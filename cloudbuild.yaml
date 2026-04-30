@@ -1,0 +1,163 @@
+substitutions:
+  _DOCKER_HUB_USERNAME: "bettyyyc14"
+  _GKE_CLUSTER: "your-gke-cluster-name"          
+  _GKE_REGION: "australia-southeast2"                     
+  _GKE_PROJECT: "your-gcp-project-id"
+  _DOCKER_HUB_TOKEN: ""            
+
+steps:
+  # ── Step 1: Authenticate with Docker Hub ─────────────────────────────────
+  - name: "gcr.io/cloud-builders/docker"
+    id: docker-login
+    entrypoint: bash
+    args:
+      - -c
+      - echo "${_DOCKER_HUB_TOKEN}" | docker login -u "${_DOCKER_HUB_USERNAME}" --password-stdin
+
+  # ── Step 2a: Build AUTH service ───────────────────────────────────────────
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-auth
+    waitFor: ["docker-login"]
+    args:
+      - build
+      - -t
+      - docker.io/${_DOCKER_HUB_USERNAME}/auth-service:${SHORT_SHA}
+      - -t
+      - docker.io/${_DOCKER_HUB_USERNAME}/auth-service:latest
+      - ./auth-service
+
+  # ── Step 2b: Build JOBAPP service (parallel with auth) ───────────────────
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-jobapp
+    waitFor: ["docker-login"]
+    args:
+      - build
+      - -t
+      - docker.io/${_DOCKER_HUB_USERNAME}/jobapp-service:${SHORT_SHA}
+      - -t
+      - docker.io/${_DOCKER_HUB_USERNAME}/jobapp-service:latest
+      - ./jobapp-service
+
+  # ── Step 2c: Build FRONTEND service (parallel with auth & jobapp) ─────────
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-frontend
+    waitFor: ["docker-login"]
+    args:
+      - build
+      - -t
+      - docker.io/${_DOCKER_HUB_USERNAME}/job-app-frontend:${SHORT_SHA}
+      - -t
+      - docker.io/${_DOCKER_HUB_USERNAME}/job-app-frontend:latest
+      - ./frontend
+
+  # ── Step 3a: Push AUTH service ────────────────────────────────────────────
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-auth
+    waitFor: ["build-auth"]
+    args:
+      - push
+      - --all-tags
+      - docker.io/${_DOCKER_HUB_USERNAME}/auth-service
+
+  # ── Step 3b: Push JOBAPP service ──────────────────────────────────────────
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-jobapp
+    waitFor: ["build-jobapp"]
+    args:
+      - push
+      - --all-tags
+      - docker.io/${_DOCKER_HUB_USERNAME}/jobapp-service
+
+  # ── Step 3c: Push FRONTEND service ───────────────────────────────────────
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-frontend
+    waitFor: ["build-frontend"]
+    args:
+      - push
+      - --all-tags
+      - docker.io/${_DOCKER_HUB_USERNAME}/job-app-frontend
+
+  # ── Step 4: Patch image tags in manifests with real username + SHA ────────
+  # Replaces the DOCKER_HUB_USERNAME and IMAGE_TAG placeholders in the
+  # deployment YAMLs so kubectl apply uses the exact SHA built above.
+  - name: "bash"
+    id: patch-images
+    waitFor: ["push-auth", "push-jobapp", "push-frontend"]
+    args:
+      - -c
+      - |
+        set -e
+        for f in k8s/auth-deployment.yaml k8s/jobapp-deployment.yaml k8s/frontend-deployment.yaml; do
+          sed -i "s|DOCKER_HUB_USERNAME|${_DOCKER_HUB_USERNAME}|g" $$f
+          sed -i "s|IMAGE_TAG|${SHORT_SHA}|g" $$f
+          echo "Patched $$f"
+        done
+
+  # ── Step 5: Apply all manifests to GKE (excluding secrets.yaml) ──────────
+  # secrets.yaml is managed out-of-band — see header comment above.
+  - name: "gcr.io/cloud-builders/kubectl"
+    id: deploy
+    waitFor: ["patch-images"]
+    env:
+      - "CLOUDSDK_COMPUTE_REGION=${_GKE_REGION}"
+      - "CLOUDSDK_CONTAINER_CLUSTER=${_GKE_CLUSTER}"
+      - "CLOUDSDK_CORE_PROJECT=${_GKE_PROJECT}"
+    args:
+      - apply
+      - -f
+      - k8s/configmap.yaml
+      - -f
+      - k8s/mongo.yaml
+      - -f
+      - k8s/auth-deployment.yaml
+      - -f
+      - k8s/jobapp-deployment.yaml
+      - -f
+      - k8s/frontend-deployment.yaml
+      - -f
+      - k8s/services.yaml
+
+  # ── Step 6: Wait for all Deployments to roll out successfully ─────────────
+  - name: "gcr.io/cloud-builders/kubectl"
+    id: rollout-auth
+    waitFor: ["deploy"]
+    env:
+      - "CLOUDSDK_COMPUTE_REGION=${_GKE_REGION}"
+      - "CLOUDSDK_CONTAINER_CLUSTER=${_GKE_CLUSTER}"
+      - "CLOUDSDK_CORE_PROJECT=${_GKE_PROJECT}"
+    args:
+      - rollout
+      - status
+      - deployment/auth-service
+      - --timeout=300s
+
+  - name: "gcr.io/cloud-builders/kubectl"
+    id: rollout-jobapp
+    waitFor: ["deploy"]
+    env:
+      - "CLOUDSDK_COMPUTE_REGION=${_GKE_REGION}"
+      - "CLOUDSDK_CONTAINER_CLUSTER=${_GKE_CLUSTER}"
+      - "CLOUDSDK_CORE_PROJECT=${_GKE_PROJECT}"
+    args:
+      - rollout
+      - status
+      - deployment/jobapp-service
+      - --timeout=300s
+
+  - name: "gcr.io/cloud-builders/kubectl"
+    id: rollout-frontend
+    waitFor: ["deploy"]
+    env:
+      - "CLOUDSDK_COMPUTE_REGION=${_GKE_REGION}"
+      - "CLOUDSDK_CONTAINER_CLUSTER=${_GKE_CLUSTER}"
+      - "CLOUDSDK_CORE_PROJECT=${_GKE_PROJECT}"
+    args:
+      - rollout
+      - status
+      - deployment/frontend
+      - --timeout=300s
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: "1800s"

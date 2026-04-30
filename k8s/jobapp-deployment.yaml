@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jobapp-service
+  namespace: default
+  labels:
+    app: jobapp-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: jobapp-service
+  template:
+    metadata:
+      labels:
+        app: jobapp-service
+    spec:
+      containers:
+        - name: jobapp-service
+          image: docker.io/DOCKER_HUB_USERNAME/jobapp-service:IMAGE_TAG
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3002
+          env:
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: JOBAPP_PORT
+            - name: MONGO_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: JOBAPP_MONGO_URI
+            - name: JWT_EXPIRES_IN
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: JWT_EXPIRES_IN
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: JWT_SECRET
+            - name: GCS_BUCKET_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: GCS_BUCKET_NAME
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /secrets/gcs/key.json
+          volumeMounts:
+            - name: gcs-key
+              mountPath: /secrets/gcs
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3002
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3002
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+      volumes:
+        - name: gcs-key
+          secret:
+            secretName: app-secrets
+            items:
+              - key: GCS_SERVICE_ACCOUNT_KEY
+                path: key.json
