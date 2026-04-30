@@ -17,7 +17,8 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: docker.io/DOCKER_HUB_USERNAME/job-app-frontend:IMAGE_TAG
+          # Cloud Build replaces IMAGE_REGISTRY and IMAGE_TAG before kubectl apply.
+          image: IMAGE_REGISTRY/job-app-frontend:IMAGE_TAG
           imagePullPolicy: Always
           ports:
             - containerPort: 80
@@ -27,12 +28,14 @@ spec:
               port: 80
             initialDelaySeconds: 10
             periodSeconds: 20
+            failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /
               port: 80
             initialDelaySeconds: 5
             periodSeconds: 10
+            failureThreshold: 3
           resources:
             requests:
               cpu: "50m"

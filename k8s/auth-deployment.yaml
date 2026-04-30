@@ -17,7 +17,8 @@ spec:
     spec:
       containers:
         - name: auth-service
-          image: docker.io/DOCKER_HUB_USERNAME/auth-service:IMAGE_TAG
+          # Cloud Build replaces IMAGE_REGISTRY and IMAGE_TAG before kubectl apply.
+          image: IMAGE_REGISTRY/auth-service:IMAGE_TAG
           imagePullPolicy: Always
           ports:
             - containerPort: 3001
@@ -48,12 +49,14 @@ spec:
               port: 3001
             initialDelaySeconds: 15
             periodSeconds: 20
+            failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /health
               port: 3001
             initialDelaySeconds: 5
             periodSeconds: 10
+            failureThreshold: 3
           resources:
             requests:
               cpu: "100m"

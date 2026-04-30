@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: jobapp-service
-          image: docker.io/DOCKER_HUB_USERNAME/jobapp-service:IMAGE_TAG
+          image: IMAGE_REGISTRY/jobapp-service:IMAGE_TAG
           imagePullPolicy: Always
           ports:
             - containerPort: 3002
@@ -47,6 +47,8 @@ spec:
                 configMapKeyRef:
                   name: app-config
                   key: GCS_BUCKET_NAME
+            # GCS auth via service account key file mounted from app-secrets.
+            # Workload Identity is not available in the Deakin-managed GCP environment.
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: /secrets/gcs/key.json
           volumeMounts:
@@ -59,12 +61,14 @@ spec:
               port: 3002
             initialDelaySeconds: 15
             periodSeconds: 20
+            failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /health
               port: 3002
             initialDelaySeconds: 5
             periodSeconds: 10
+            failureThreshold: 3
           resources:
             requests:
               cpu: "100m"
