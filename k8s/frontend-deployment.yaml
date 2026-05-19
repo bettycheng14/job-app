@@ -6,10 +6,15 @@ metadata:
   labels:
     app: frontend
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: frontend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   template:
     metadata:
       labels:
@@ -38,7 +43,7 @@ spec:
             failureThreshold: 3
           resources:
             requests:
-              cpu: "50m"
+              cpu: "25m"
               memory: "64Mi"
             limits:
               cpu: "200m"
