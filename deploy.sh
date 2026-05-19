@@ -22,6 +22,7 @@ kubectl apply -f "$TMPDIR/auth-deployment.yaml"
 kubectl apply -f "$TMPDIR/jobapp-deployment.yaml"
 kubectl apply -f "$TMPDIR/frontend-deployment.yaml"
 kubectl apply -f k8s/services.yaml
+kubectl apply -f k8s/hpa.yaml
 
 echo "▶ Waiting for rollouts..."
 kubectl rollout status deployment/auth-service    --timeout=300s
