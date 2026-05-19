@@ -74,7 +74,7 @@ export default function MyApplications() {
                       <td>{app.email}</td>
                       <td>{app.telNum}</td>
                       <td>
-                        <a href={app.resumeUrl} target="_blank" rel="noreferrer" className="link">
+                        <a href={`/api/applications/${app._id}/resume`} target="_blank" rel="noreferrer" className="link">
                           View
                         </a>
                       </td>

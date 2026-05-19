@@ -12,22 +12,28 @@ const uploadToGCS = (file) =>
     const filename = `resumes/${Date.now()}-${file.originalname.replace(/\s+/g, '_')}`;
     const blob = bucket.file(filename);
     const stream = blob.createWriteStream({ resumable: false, contentType: file.mimetype });
-
     stream.on('error', reject);
-    stream.on('finish', async () => {
-      try {
-        const [signedUrl] = await blob.getSignedUrl({
-          version: 'v4',
-          action: 'read',
-          expires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
-        });
-        resolve(signedUrl);
-      } catch (err) {
-        reject(err);
-      }
-    });
+    stream.on('finish', () => resolve(filename));
     stream.end(file.buffer);
   });
+
+const getApplicationResume = async (req, res) => {
+  try {
+    const application = await Application.findById(req.params.id);
+    if (!application) return res.status(404).json({ message: 'Application not found' });
+
+    const storage = new Storage();
+    const file = storage.bucket(process.env.GCS_BUCKET_NAME).file(application.resumeUrl);
+    const [metadata] = await file.getMetadata();
+    res.setHeader('Content-Type', metadata.contentType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `inline; filename="${path.basename(application.resumeUrl)}"`);
+    file.createReadStream()
+      .on('error', (err) => res.status(500).json({ message: 'Failed to stream file', error: err.message }))
+      .pipe(res);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to retrieve resume', error: err.message });
+  }
+};
 
 const saveLocally = (file, host) => {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -74,4 +80,4 @@ const getApplicationById = async (req, res) => {
   }
 };
 
-module.exports = { createApplication, getApplications, getApplicationById };
+module.exports = { createApplication, getApplications, getApplicationById, getApplicationResume };
