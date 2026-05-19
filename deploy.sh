@@ -25,9 +25,9 @@ kubectl apply -f k8s/services.yaml
 kubectl apply -f k8s/hpa.yaml
 
 echo "▶ Waiting for rollouts..."
-kubectl rollout status deployment/auth-service    --timeout=300s
-kubectl rollout status deployment/jobapp-service  --timeout=300s
-kubectl rollout status deployment/frontend        --timeout=300s
+kubectl rollout status deployment/auth-service    --timeout=600s
+kubectl rollout status deployment/jobapp-service  --timeout=600s
+kubectl rollout status deployment/frontend        --timeout=600s
 
 echo ""
 echo "✅ Deployment complete!"
