@@ -14,8 +14,17 @@ const uploadToGCS = (file) =>
     const stream = blob.createWriteStream({ resumable: false, contentType: file.mimetype });
 
     stream.on('error', reject);
-    stream.on('finish', () => {
-      resolve(`https://storage.googleapis.com/${process.env.GCS_BUCKET_NAME}/${filename}`);
+    stream.on('finish', async () => {
+      try {
+        const [signedUrl] = await blob.getSignedUrl({
+          version: 'v4',
+          action: 'read',
+          expires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
+        });
+        resolve(signedUrl);
+      } catch (err) {
+        reject(err);
+      }
     });
     stream.end(file.buffer);
   });
